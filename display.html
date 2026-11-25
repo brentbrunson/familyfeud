@@ -390,13 +390,14 @@ function fitTitle(t) {
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
   while (el.scrollWidth > 86 * rem && fs > 4) { fs -= 0.5; el.style.fontSize = fs + 'rem'; }
 }
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) fetch('/api/lan').then(r=>r.json()).then(j=>{ if (j.ips[0]) { window.LANHOST = j.ips[0] + ':' + j.port; try { renderTitle(); } catch(e){} } }).catch(()=>{});
 function renderTitle() {
   const t = (S.title || 'Family Feud').toUpperCase();
   if (window._ttl !== t) { window._ttl = t; document.title = S.title; fitTitle(t); }
   const lg = $('#logo');
   if ((S.logo || '') !== (lg.getAttribute('src') || '')) { if (S.logo) { lg.src = S.logo; lg.style.display = 'block'; } else { lg.removeAttribute('src'); lg.style.display = 'none'; } }
   $('#tnA').textContent = S.teams.A.name; $('#tnB').textContent = S.teams.B.name;
-  $('#uJ').textContent = location.host + '/j/' + S.code; $('#uC').textContent = S.code;
+  $('#uJ').textContent = (window.LANHOST || location.host) + '/j/' + S.code; $('#uC').textContent = S.code;
   $('#dA').classList.toggle('on', S.conns.A > 0); $('#dB').classList.toggle('on', S.conns.B > 0);
 }
 function renderRound() {

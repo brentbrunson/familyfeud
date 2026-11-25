@@ -136,7 +136,10 @@ function render() {
   renderShare();
 }
 
-const absUrl = (p) => location.origin + p;
+let ORIGIN = location.origin;
+const isLocal = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+if (isLocal) fetch('/api/lan').then(r => r.json()).then(j => { if (j.ips[0]) { ORIGIN = 'http://' + j.ips[0] + ':' + j.port; shareBuilt = ''; if (S) renderShare(); } }).catch(() => {});
+const absUrl = (p) => ORIGIN + p;
 let shareBuilt = '';
 function renderShare() {
   const sig = S.code + '|' + S.teams.A.name + '|' + S.teams.B.name;

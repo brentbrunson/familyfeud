@@ -1,0 +1,8 @@
+{
+  "name": "family-feud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Family Feud game night: TV board, host controls, and phone buzzers.",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
