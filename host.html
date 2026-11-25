@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Feud Host Panel</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#0b1233;color:#fff;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:16px;padding:10px 10px 80px;max-width:760px;margin:0 auto}
+h2{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#8fa4ff;margin:18px 0 8px}
+.card{background:#141d4a;border-radius:14px;padding:12px;margin-bottom:10px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:12px 14px;background:#2d3c8f;color:#fff;cursor:pointer;min-height:46px}
+button:active{filter:brightness(1.3)}
+button.on{background:#ffd34d;color:#2b1a00}
+button.go{background:#17a34a}
+button.bad{background:#c42a2a}
+button.warn{background:#c77d00}
+button.A{background:#ff6b81;color:#3a0010}button.B{background:#3fe0c5;color:#003a30}
+button:disabled{opacity:.35}
+.grow{flex:1}
+.q{font-size:17px;font-weight:700;line-height:1.3;margin-bottom:6px}
+.muted{color:#9aa8e6;font-size:13px}
+.ans{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;margin-bottom:6px;background:#26357f}
+.ans.on{background:#ffd34d;color:#2b1a00}
+.ans b{opacity:.7;margin-right:6px}
+.status{position:sticky;top:0;z-index:5;background:#0b1233;padding:8px 0}
+.bz{padding:10px;border-radius:10px;background:#0a0f2a;font-weight:800;text-align:center}
+.bz.hot{background:#17a34a}
+.bz.A.hot{background:#ff6b81;color:#3a0010}.bz.B.hot{background:#3fe0c5;color:#003a30}
+input[type=text],input:not([type]){font:inherit;padding:10px;border-radius:8px;border:2px solid #2d3c8f;background:#0a0f2a;color:#fff;width:100%}
+input:focus{outline:none;border-color:#ffd34d}
+.opt{background:#26357f;font-weight:600;padding:10px 12px;min-height:42px;font-size:15px}
+.opt.sel{background:#ffd34d;color:#2b1a00}
+.fmq{border-top:1px solid #2d3c8f;padding-top:12px;margin-top:12px}
+.small{font-size:13px;min-height:38px;padding:8px 10px}
+.script{font-size:19px;line-height:1.5}
+.script b{display:block;margin-top:8px;font-size:21px}
+.hint{font-size:12px;color:#7686c8;line-height:1.5}
+.tag{display:inline-block;font-size:12px;font-weight:800;padding:2px 8px;border-radius:20px;background:#2d3c8f;margin-left:6px;vertical-align:middle}
+.tag.ok{background:#17a34a}
+</style>
+</head>
+<body>
+<div class="status"><div class="bz" id="bz">Connecting&hellip;</div></div>
+
+<h2>Share the game <span id="codeTag" style="color:#ffd34d;letter-spacing:4px"></span></h2>
+<div class="card" id="share"></div>
+
+<h2>Team names</h2>
+<div class="card"><div class="row"><input id="nameA" class="grow" maxlength="24" placeholder="Team A name"><input id="nameB" class="grow" maxlength="24" placeholder="Team B name"></div>
+<p class="hint" style="margin:8px 0 0">Type each team's name &mdash; it updates on the TV and buzzers when you leave the box.</p></div>
+
+<h2>Go to</h2>
+<div class="card"><div class="row" id="nav"></div></div>
+
+<div id="roundPanel" style="display:none">
+  <h2>Read aloud</h2>
+  <div class="card script" id="rInfo"></div>
+  <h2>1 &middot; Face-off buzzers</h2>
+  <div class="card"><div class="row" id="buzzCtl"></div></div>
+  <h2>2 &middot; Who has control?</h2>
+  <div class="card"><div class="row" id="ctlCtl"></div></div>
+  <h2>3 &middot; Answers (tap to reveal)</h2>
+  <div class="card" id="answers"></div>
+  <div class="card"><div class="row" id="strikeCtl"></div></div>
+  <h2>4 &middot; Round result</h2>
+  <div class="card"><div class="row" id="awardCtl"></div><div class="row" style="margin-top:8px" id="nextCtl"></div></div>
+</div>
+
+<div id="fmPanel" style="display:none">
+  <h2>Fast Money</h2>
+  <div class="card">
+    <div class="row" id="fmPlayerBtns"></div>
+    <div class="row" style="margin-top:8px" id="fmTimerBtns"></div>
+    <div class="muted" id="fmTotals" style="margin-top:8px"></div>
+  </div>
+  <div class="card"><div class="row" id="fmBulk"></div>
+</div>
+  <div id="fmQs"></div>
+  <div class="card"><div class="row" id="fmFinish"></div></div>
+</div>
+
+<h2>Scores</h2>
+<div class="card"><div class="row" id="scoreBtns"></div></div>
+
+<h2>Other</h2>
+<div class="card"><div class="row"><button class="bad" id="resetBtn">Reset whole game</button></div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const QS = new URLSearchParams(location.search);
+const ROOM = (QS.get('r') || '').toUpperCase(), KEY = QS.get('k') || '';
+if (!ROOM || !KEY) location.href = '/';
+let S = null;
+
+const A = (o) => 'data-a="' + esc(JSON.stringify(o)) + '"';
+async function act(o) {
+  try {
+    const r = await fetch('/api/act?r=' + ROOM + '&k=' + encodeURIComponent(KEY), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) });
+    if (r.status === 403) alert('Not authorized. Open the host link from the setup page again.');
+  } catch (e) {}
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-a]');
+  if (b && !b.disabled) { flushEntries(); act(JSON.parse(b.dataset.a)); }
+});
+
+const es = new EventSource('/events?r=' + ROOM + '&role=host&k=' + encodeURIComponent(KEY));
+es.onerror = () => {
+  fetch('/api/room?r=' + ROOM).then((r) => { if (r.status === 404) { es.close(); document.body.innerHTML = '<div style="padding:40px 16px;text-align:center"><h2 style="font-size:22px;color:#fff;letter-spacing:0">This game has ended</h2><p style="color:#9aa8e6">Games are cleared after a while. Your setup is saved in this browser.</p><a href="/" style="color:#ffd34d;font-weight:700">Start a new game</a></div>'; } }).catch(() => {});
+};
+es.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === 'state') { S = m; render(); } };
+
+const tn = (t) => S.teams[t].name;
+function render() {
+  const bz = $('#bz');
+  const tm = S.timer && S.timer.team ? ' · clock: ' + tn(S.timer.team) : '';
+  if (S.buzz) { bz.className = 'bz hot ' + S.buzz.team; bz.textContent = '\u{1F514} ' + S.buzz.name + ' (' + tn(S.buzz.team) + ') buzzed first' + tm; }
+  else if (S.buzzerOpen) { bz.className = 'bz hot'; bz.textContent = 'Buzzers OPEN — waiting…'; }
+  else { bz.className = 'bz'; bz.textContent = 'Buzzers closed · phones: ' + tn('A') + ' ' + S.conns.A + ' / ' + tn('B') + ' ' + S.conns.B + tm; }
+
+  $('#nav').innerHTML =
+    '<button ' + A({ action: 'goto', to: 'title' }) + (S.screen === 'title' ? ' class="on"' : '') + '>Title</button>' +
+    S.rounds.map((t, i) => '<button ' + A({ action: 'goto', to: i }) + (S.screen === 'round' && S.roundIdx === i ? ' class="on"' : '') + '>Round ' + (i + 1) + '</button>').join('') +
+    (S.fmEnabled ? '<button ' + A({ action: 'goto', to: 'fm' }) + (S.screen === 'fm' ? ' class="on"' : '') + '>Fast Money</button>' : '') +
+    '<button ' + A({ action: 'goto', to: 'winner' }) + (S.screen === 'winner' ? ' class="on"' : '') + '>\u{1F3C6} Winner</button>';
+
+  $('#roundPanel').style.display = S.screen === 'round' ? 'block' : 'none';
+  $('#fmPanel').style.display = S.screen === 'fm' ? 'block' : 'none';
+  if (S.screen === 'round' && S.round) renderRound();
+  if (S.screen === 'fm') renderFM();
+  renderScores();
+  renderShare();
+}
+
+const absUrl = (p) => location.origin + p;
+let shareBuilt = '';
+function renderShare() {
+  const sig = S.code + '|' + S.teams.A.name + '|' + S.teams.B.name;
+  if (shareBuilt === sig) return;
+  shareBuilt = sig;
+  $('#codeTag').textContent = S.code;
+  const rows = [
+    ['TV page (open this on the computer connected to the TV)', absUrl('/tv?r=' + S.code), true],
+    ['For captains: they open this, then pick their team', absUrl('/j/' + S.code), false],
+    ['Direct link for ' + S.teams.A.name, absUrl('/b?r=' + S.code + '&t=A'), false],
+    ['Direct link for ' + S.teams.B.name, absUrl('/b?r=' + S.code + '&t=B'), false]
+  ];
+  $('#share').innerHTML = rows.map((r) => '<div style="margin-bottom:10px"><div class="muted">' + esc(r[0]) + '</div><div class="row" style="margin-top:4px"><input readonly class="grow" value="' + esc(r[1]) + '" onclick="this.select()" style="font-size:14px"><button class="small" data-copy="' + esc(r[1]) + '">Copy</button>' + (r[2] ? '<a class="small go" style="min-height:36px;padding:6px 12px;font-size:14px;border-radius:10px;background:#17a34a;color:#fff;text-decoration:none;display:inline-flex;align-items:center;font-weight:700" href="' + esc(r[1]) + '" target="_blank">Open TV</a>' : '') + '</div></div>').join('') +
+    '<div class="row"><a href="/setup?r=' + ROOM + '&k=' + encodeURIComponent(KEY) + '" style="color:#ffd34d;font-weight:700">Edit questions, teams &amp; logo</a><span class="hint">(saving there restarts the game)</span></div>';
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-copy]');
+  if (!b) return;
+  const done = () => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500); };
+  try { navigator.clipboard.writeText(b.dataset.copy).then(done, () => {}); } catch (e) {}
+});
+
+function renderRound() {
+  const r = S.round;
+  const done = S.phase === 'done';
+  const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  const n = r.answers.length;
+  const extra = r.mult === 2 ? ' Remember, point values are doubled in this round.' : r.mult === 3 ? ' Remember, point values are tripled in this round.' : '';
+  $('#rInfo').innerHTML = 'We surveyed 100 people, the top ' + (words[n] || n) + ' answers are on the board.' + extra + '<b>' + esc(r.question) + '</b>';
+  $('#buzzCtl').innerHTML = '<button class="go grow" ' + A({ action: 'openBuzz' }) + '>Open buzzers</button><button class="grow" ' + A({ action: 'clearBuzz' }) + '>Clear / close</button>';
+  $('#ctlCtl').innerHTML = ['A', 'B'].map((t) => '<button class="' + t + ' grow' + (S.control === t ? ' on' : '') + '" ' + A({ action: 'control', team: t }) + '>' + esc(tn(t)) + ' has control' + (S.control === t ? ' ✓' : '') + '</button>').join('');
+  $('#answers').innerHTML = r.answers.map((a, i) => '<button class="ans' + (a.revealed ? ' on' : '') + '" ' + A({ action: 'reveal', i }) + '><span><b>' + (i + 1) + '</b>' + esc(a.text) + '</span><span>' + a.pts + (a.revealed ? ' ✓' : '') + '</span></button>').join('') +
+    '<div class="row"><button class="small" ' + A({ action: 'revealAll' }) + '>Reveal all remaining</button></div>';
+  $('#strikeCtl').innerHTML = '<button class="bad grow" ' + A({ action: 'strike' }) + '>\u2715 STRIKE (' + S.strikes + '/3)</button>' +
+    '<button class="grow' + (S.canUndo ? ' on' : '') + '" ' + A({ action: 'strikeUndo' }) + '>Undo strike</button>' +
+    '<button class="warn grow" ' + A({ action: 'timer', seconds: 5 }) + '>Start 5s clock</button><button class="grow" ' + A({ action: 'timerStop' }) + '>Stop clock</button>';
+  if (done) $('#awardCtl').innerHTML = '<div class="grow" style="align-self:center;font-weight:800">\u2713 ' + esc(tn(S.awarded.team)) + ' awarded ' + S.awarded.pts + '</div><button class="warn" ' + A({ action: 'undoAward' }) + '>Undo award</button>';
+  else $('#awardCtl').innerHTML = ['A', 'B'].map((t) => '<button class="' + t + ' grow" ' + A({ action: 'award', team: t }) + '>Award ' + r.bank + ' \u2192 ' + esc(tn(t)) + '</button>').join('');
+  const last = S.roundIdx >= S.rounds.length - 1;
+  const after = S.fmEnabled ? 'fm' : 'winner';
+  $('#nextCtl').innerHTML = '<button class="go grow" ' + A({ action: 'goto', to: last ? after : S.roundIdx + 1 }) + '>' + (last ? (S.fmEnabled ? 'Go to Fast Money →' : 'Show the winner →') : 'Next: Round ' + (S.roundIdx + 2) + ' →') + '</button>';
+}
+
+/* ---------- Fast Money ---------- */
+const pending = {}; // key "p-q" -> timeout, for debounced typing
+function sendEntry(p, q, text) {
+  clearTimeout(pending[p + '-' + q]); delete pending[p + '-' + q];
+  act({ action: 'fmEntry', p, q, pick: null, text });
+}
+function flushEntries() {
+  document.querySelectorAll('input.fmtext').forEach((inp) => {
+    const k = inp.dataset.p + '-' + inp.dataset.q;
+    if (pending[k]) sendEntry(+inp.dataset.p, +inp.dataset.q, inp.value);
+  });
+}
+document.addEventListener('input', (e) => {
+  const inp = e.target.closest('input.fmtext');
+  if (!inp) return;
+  const p = +inp.dataset.p, q = +inp.dataset.q, k = p + '-' + q;
+  clearTimeout(pending[k]);
+  pending[k] = setTimeout(() => sendEntry(p, q, inp.value), 350);
+});
+document.addEventListener('change', (e) => {
+  const inp = e.target.closest('input.fmtext');
+  if (inp) sendEntry(+inp.dataset.p, +inp.dataset.q, inp.value);
+});
+
+function renderFM() {
+  const f = S.fm, p = f.player, pk = 'p' + p, ok = 'p' + (p === 1 ? 2 : 1);
+  $('#fmPlayerBtns').innerHTML = [1, 2].map((n) => '<button class="grow' + (p === n ? ' on' : '') + '" ' + A({ action: 'fmPlayer', p: n }) + '>Player ' + n + ' (' + f.secs[n] + 's)</button>').join('');
+  $('#fmTimerBtns').innerHTML = '<button class="go grow" ' + A({ action: 'timer', seconds: f.secs[p], end: 'long' }) + '>Start Player ' + p + ' clock (' + f.secs[p] + 's)</button>';
+  $('#fmTotals').textContent = 'P1 ' + f.totals[1] + '  +  P2 ' + f.totals[2] + '  =  ' + (f.totals[1] + f.totals[2]) + ' / ' + f.target;
+  $('#fmBulk').innerHTML =
+    '<button class="go grow" ' + A({ action: 'fmShowAll', p }) + '>Reveal all P' + p + ' answers (one by one)</button>' +
+    '<button class="warn grow" ' + A({ action: 'fmHide', p }) + '>Hide P' + p + ' answers (keep scores)</button>';
+
+  // keep the cursor/typing if an input is focused during a re-render
+  const ae = document.activeElement;
+  const keep = ae && ae.classList && ae.classList.contains('fmtext') ? { id: ae.id, value: ae.value, s: ae.selectionStart, e: ae.selectionEnd } : null;
+
+  $('#fmQs').innerHTML = f.questions.map((qq, i) => {
+    const cell = f.rows[i][pk], oth = f.rows[i][ok];
+    const opts = qq.options.map((o, k) => {
+      const taken = p === 2 && oth.pick === k;
+      return '<button class="opt' + (cell.pick === k ? ' sel' : '') + '" ' + (taken ? 'disabled ' : '') + A({ action: 'fmEntry', p, q: i, pick: k, text: o.text }) + '>' + esc(o.text) + ' · ' + o.pts + (taken ? ' (P1 said)' : '') + '</button>';
+    }).join('');
+    const st = cell.shown ? (cell.masked ? 'hidden' : 'revealed') : '';
+    return '<div class="card"><div class="q">' + (i + 1) + '. ' + esc(qq.q) + (st ? '<span class="tag ok">' + st + '</span>' : '') + '</div>' +
+      '<input class="fmtext" type="text" id="fmt-' + p + '-' + i + '" data-p="' + p + '" data-q="' + i + '" placeholder="What did Player ' + p + ' say?" value="' + esc(cell.raw) + '" autocomplete="off" autocapitalize="sentences">' +
+      '<div class="row" style="margin-top:8px">' + opts + '</div>' +
+      '<div class="row" style="margin-top:8px">' +
+      '<button class="small' + (f.q === i ? ' on' : '') + '" ' + A({ action: 'fmQ', q: i }) + '>Show question on TV</button>' +
+      '<button class="small go grow" ' + A({ action: 'fmShow', p, q: i, value: true }) + '>Reveal P' + p + ' answer</button>' +
+      '<button class="small" ' + A({ action: 'fmShow', p, q: i, value: false }) + '>Hide row</button>' +
+      (p === 2 ? '<button class="small warn" ' + A({ action: 'fmDup' }) + '>Duplicate</button>' : '') +
+      '<button class="small" ' + A({ action: 'fmEntry', p, q: i, pick: null, text: '' }) + '>Clear</button></div></div>';
+  }).join('');
+
+  if (keep) {
+    const el = document.getElementById(keep.id);
+    if (el) { el.value = keep.value; el.focus(); try { el.setSelectionRange(keep.s, keep.e); } catch (e) {} }
+  }
+  $('#fmFinish').innerHTML = '<button class="warn grow" ' + A({ action: 'fmFinish' }) + '>Finish — show win / lose</button>';
+}
+
+function renderScores() {
+  ['A', 'B'].forEach((t) => { const el = $('#name' + t); if (document.activeElement !== el) el.value = S.teams[t].name; });
+  $('#scoreBtns').innerHTML = ['A', 'B'].map((t) =>
+    '<div class="card grow" style="margin:0;text-align:center"><div class="muted">' + esc(tn(t)) + '</div><div style="font-size:32px;font-weight:900">' + S.teams[t].score + '</div>' +
+    '<div class="row" style="justify-content:center"><button class="small" ' + A({ action: 'adjust', team: t, delta: -10 }) + '>-10</button><button class="small" ' + A({ action: 'adjust', team: t, delta: 10 }) + '>+10</button></div></div>').join('');
+}
+['A', 'B'].forEach((t) => $('#name' + t).addEventListener('change', (e) => act({ action: 'rename', team: t, name: e.target.value })));
+$('#resetBtn').addEventListener('click', () => { if (confirm('Reset scores and the whole game?')) act({ action: 'reset' }); });
+</script>
+</body>
+</html>

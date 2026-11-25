@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Buzzer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+html,body{margin:0;height:100%;background:#071448;color:#fff;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+body{display:flex;flex-direction:column;padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));gap:12px}
+.A{--c:#ff6b81}.B{--c:#3fe0c5}
+#top{display:flex;gap:10px;align-items:center}
+#team{font-weight:900;font-size:20px;color:var(--c);flex:1;line-height:1.1}
+#name{flex:1.2;font-size:18px;padding:10px 12px;border-radius:10px;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.3);color:#fff;min-width:0}
+#btn{flex:1;border:0;border-radius:28px;font-size:18px;font-weight:900;color:#fff;background:#3a4780;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px;transition:background .15s,transform .05s}
+#btn big{font-size:min(22vw,18vh);line-height:1;font-weight:900;letter-spacing:1px;display:block}
+#btn small{font-size:20px;font-weight:600;opacity:.85}
+#btn.open{background:radial-gradient(circle at 50% 35%,#4dff8d,#0fa84a);box-shadow:0 0 0 6px rgba(77,255,141,.35),0 10px 40px rgba(0,0,0,.5);color:#03270f;animation:p .8s infinite alternate}
+#btn.open:active{transform:scale(.97)}
+#btn.me{background:radial-gradient(circle at 50% 35%,var(--c),#0a1a5c 140%);color:#0a1a5c;animation:none}
+#btn.team{background:#2b3a82}
+#btn.other{background:#7a2a2a}
+@keyframes p{to{transform:scale(1.015)}}
+</style>
+</head>
+<body>
+<div id="top"><div id="team"></div><input id="name" placeholder="Your name" maxlength="24" autocomplete="off"></div>
+<button id="btn"><big id="big">...</big><small id="sub"></small></button>
+<script>
+const $ = (s) => document.querySelector(s);
+const qs = new URLSearchParams(location.search);
+const ROOM = (qs.get('r') || '').toUpperCase();
+let TEAM = (qs.get('t') || '').toUpperCase();
+if (TEAM !== 'A' && TEAM !== 'B') {
+  location.href = ROOM ? '/j/' + ROOM : '/';
+} else {
+  document.body.className = TEAM;
+  let CID = '';
+  try { CID = localStorage.getItem('feud_cid') || ''; if (!CID) { CID = Math.random().toString(36).slice(2, 12); localStorage.setItem('feud_cid', CID); } } catch (e) { CID = Math.random().toString(36).slice(2, 12); }
+  const nameEl = $('#name');
+  try { nameEl.value = localStorage.getItem('feud_name') || ''; } catch (e) {}
+  nameEl.addEventListener('input', () => { try { localStorage.setItem('feud_name', nameEl.value); } catch (e) {} });
+  let S = null, wasMine = false, pending = false;
+
+  const es = new EventSource('/events?r=' + ROOM + '&role=buzz&team=' + TEAM);
+  es.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'state') { S = m; pending = false; render(); }
+  };
+  es.onerror = () => {
+    $('#big').textContent = '...'; $('#sub').textContent = 'reconnecting'; $('#btn').className = '';
+    fetch('/api/room?r=' + ROOM).then((r) => { if (r.status === 404) { es.close(); $('#big').textContent = 'Game over'; $('#sub').textContent = 'This game has ended. Ask your host for a new code.'; } }).catch(() => {});
+  };
+
+  function render() {
+    const tn = S.teams[TEAM].name;
+    $('#team').textContent = tn;
+    const btn = $('#btn'), big = $('#big'), sub = $('#sub');
+    const open = S.buzzerOpen && !S.buzz;
+    const mine = S.buzz && S.buzz.cid === CID;
+    let cls = '';
+    if (S.buzz) {
+      if (mine) { cls = 'me'; big.textContent = "YOU'RE UP!"; sub.textContent = 'Give your answer'; }
+      else if (S.buzz.team === TEAM) { cls = 'team'; big.textContent = S.buzz.name; sub.textContent = 'on your team buzzed first'; }
+      else { cls = 'other'; big.textContent = 'Too slow'; sub.textContent = S.teams[S.buzz.team].name + ' buzzed first'; }
+    } else if (open) { cls = 'open'; big.textContent = 'BUZZ!'; sub.textContent = 'Tap!'; }
+    else { big.textContent = 'WAIT'; sub.textContent = 'Buzzers are closed'; }
+    btn.className = cls;
+    if (mine && !wasMine) { try { navigator.vibrate && navigator.vibrate([200, 80, 200]); } catch (e) {} }
+    wasMine = !!mine;
+  }
+
+  function buzz(ev) {
+    ev.preventDefault();
+    if (!S || !S.buzzerOpen || S.buzz || pending) return;
+    pending = true;
+    try { navigator.vibrate && navigator.vibrate(60); } catch (e) {}
+    $('#big').textContent = '...';
+    fetch('/api/buzz?r=' + ROOM, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team: TEAM, name: nameEl.value, cid: CID }) })
+      .then((r) => r.json()).then((r) => { if (!r.first) { pending = false; if (S) render(); } })
+      .catch(() => { pending = false; if (S) render(); });
+  }
+  $('#btn').addEventListener('pointerdown', buzz);
+
+  try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
+  document.addEventListener('visibilitychange', () => { try { if (!document.hidden && navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {} });
+}
+</script>
+</body>
+</html>
